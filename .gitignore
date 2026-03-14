@@ -8,3 +8,4 @@ image
 .gradle
 android-shell/.gradle/
 android-shell/app/build/
+.DS_Store
