@@ -29,7 +29,20 @@ class Ledger:
         self.settings = settings
         self.connection = create_connection(settings.db_path)
         init_db(self.connection)
-        self.lock = threading.Lock()
+        self.lock = threading.RLock()
+
+    def _fetchone(self, sql: str, params: tuple[Any, ...] = ()) -> dict[str, Any] | None:
+        with self.lock:
+            return self.connection.execute(sql, params).fetchone()
+
+    def _fetchall(self, sql: str, params: tuple[Any, ...] = ()) -> list[dict[str, Any]]:
+        with self.lock:
+            return list(self.connection.execute(sql, params).fetchall())
+
+    def _execute_commit(self, sql: str, params: tuple[Any, ...] = ()) -> None:
+        with self.lock:
+            self.connection.execute(sql, params)
+            self.connection.commit()
 
     def initialize(self) -> None:
         self.import_legacy_csv_once()
@@ -65,10 +78,10 @@ class Ledger:
                 self.set_setting(key, value)
 
     def ensure_auto_row(self) -> None:
-        row = self.connection.execute("SELECT id FROM auto_runs ORDER BY id DESC LIMIT 1").fetchone()
+        row = self._fetchone("SELECT id FROM auto_runs ORDER BY id DESC LIMIT 1")
         if row:
             return
-        self.connection.execute(
+        self._execute_commit(
             """
             INSERT INTO auto_runs (
                 running, mode, ranking_type, budget_sol, risk_mode, paused_reason, last_action,
@@ -77,24 +90,20 @@ class Ledger:
             """,
             (0, "auto_live", "combined", self.settings.default_budget_sol, "normal", "", "", "", "", "", "", now_iso()),
         )
-        self.connection.commit()
 
     def get_setting(self, key: str) -> str | None:
-        with self.lock:
-            row = self.connection.execute("SELECT value FROM settings WHERE key = ?", (str(key),)).fetchone()
+        row = self._fetchone("SELECT value FROM settings WHERE key = ?", (str(key),))
         return None if not row else str(row["value"])
 
     def set_setting(self, key: str, value: Any) -> None:
-        with self.lock:
-            self.connection.execute(
-                """
-                INSERT INTO settings (key, value, updated_at)
-                VALUES (?, ?, ?)
-                ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
-                """,
-                (str(key), str(value), now_iso()),
-            )
-            self.connection.commit()
+        self._execute_commit(
+            """
+            INSERT INTO settings (key, value, updated_at)
+            VALUES (?, ?, ?)
+            ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
+            """,
+            (str(key), str(value), now_iso()),
+        )
 
     def get_settings_payload(self) -> dict[str, Any]:
         payload = self.settings.as_public_dict()
@@ -150,7 +159,7 @@ class Ledger:
         return payload
 
     def import_legacy_csv_once(self) -> None:
-        if self.connection.execute("SELECT COUNT(*) AS count FROM trades").fetchone()["count"]:
+        if self._fetchone("SELECT COUNT(*) AS count FROM trades")["count"]:
             return
         legacy_root = self.settings.legacy_root
         if not legacy_root.exists():
@@ -241,21 +250,19 @@ class Ledger:
         breaker_state: str,
         detail: str = "",
     ) -> None:
-        self.connection.execute(
+        self._execute_commit(
             """
             INSERT INTO api_events (endpoint, http_status, error_type, retry_count, breaker_state, detail, created_at)
             VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
             (endpoint, http_status, error_type, retry_count, breaker_state, detail[:500], now_iso()),
         )
-        self.connection.commit()
 
     def record_risk_event(self, event_type: str, detail: str = "") -> None:
-        self.connection.execute(
+        self._execute_commit(
             "INSERT INTO risk_events (event_type, detail, created_at) VALUES (?, ?, ?)",
             (event_type, detail[:500], now_iso()),
         )
-        self.connection.commit()
 
     def create_order(self, payload: dict[str, Any]) -> None:
         with self.lock, transaction(self.connection):
@@ -292,26 +299,25 @@ class Ledger:
             return
         assignments = ", ".join(f"{key} = ?" for key in fields)
         values = list(fields.values()) + [now_iso(), client_trade_id]
-        self.connection.execute(
+        self._execute_commit(
             f"UPDATE orders SET {assignments}, updated_at = ? WHERE client_trade_id = ?",
-            values,
+            tuple(values),
         )
-        self.connection.commit()
 
     def get_order(self, order_id: str | None = None, client_trade_id: str | None = None) -> dict[str, Any] | None:
         if order_id:
-            return self.connection.execute("SELECT * FROM orders WHERE order_id = ? ORDER BY id DESC LIMIT 1", (order_id,)).fetchone()
+            return self._fetchone("SELECT * FROM orders WHERE order_id = ? ORDER BY id DESC LIMIT 1", (order_id,))
         if client_trade_id:
-            return self.connection.execute("SELECT * FROM orders WHERE client_trade_id = ?", (client_trade_id,)).fetchone()
+            return self._fetchone("SELECT * FROM orders WHERE client_trade_id = ?", (client_trade_id,))
         return None
 
     def get_active_order(self) -> dict[str, Any] | None:
-        return self.connection.execute(
+        return self._fetchone(
             "SELECT * FROM orders WHERE status IN ('prepared', 'submitted', 'polling') ORDER BY id DESC LIMIT 1"
-        ).fetchone()
+        )
 
     def add_trade(self, payload: dict[str, Any]) -> None:
-        self.connection.execute(
+        self._execute_commit(
             """
             INSERT INTO trades (
                 client_trade_id, order_id, position_id, side, token_symbol, token_contract, amount_in_sol,
@@ -334,19 +340,13 @@ class Ledger:
                 payload.get("created_at", now_iso()),
             ),
         )
-        self.connection.commit()
 
     def has_trade(self, client_trade_id: str) -> bool:
-        row = self.connection.execute(
-            "SELECT COUNT(*) AS count FROM trades WHERE client_trade_id = ?",
-            (client_trade_id,),
-        ).fetchone()
+        row = self._fetchone("SELECT COUNT(*) AS count FROM trades WHERE client_trade_id = ?", (client_trade_id,))
         return bool(row and int(row["count"]) > 0)
 
     def list_trades(self, limit: int = 50) -> list[dict[str, Any]]:
-        return list(
-            self.connection.execute("SELECT * FROM trades ORDER BY id DESC LIMIT ?", (limit,)).fetchall()
-        )
+        return self._fetchall("SELECT * FROM trades ORDER BY id DESC LIMIT ?", (limit,))
 
     def upsert_position(self, payload: dict[str, Any]) -> None:
         position_id = payload.get("id") or payload.get("position_id")
@@ -367,47 +367,44 @@ class Ledger:
             payload.get("status", "open"),
             payload.get("updated_at", now_iso()),
         )
-        if position_id:
-            self.connection.execute(
-                """
-                UPDATE position_records
-                SET token_contract = ?, token_symbol = ?, entry_price_sol = ?, current_price_sol = ?,
-                    amount = ?, market_value_sol = ?, cost_basis_sol = ?, realized_pnl_sol = ?,
-                    peak_price_sol = ?, take_profit_stage = ?, mode = ?, opened_at = ?, closed_at = ?,
-                    status = ?, updated_at = ?
-                WHERE id = ?
-                """,
-                values + (position_id,),
-            )
-        else:
-            self.connection.execute(
-                """
-                INSERT INTO position_records (
-                    token_contract, token_symbol, entry_price_sol, current_price_sol, amount,
-                    market_value_sol, cost_basis_sol, realized_pnl_sol, peak_price_sol,
-                    take_profit_stage, mode, opened_at, closed_at, status, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                values,
-            )
-        self.connection.commit()
+        with self.lock:
+            if position_id:
+                self.connection.execute(
+                    """
+                    UPDATE position_records
+                    SET token_contract = ?, token_symbol = ?, entry_price_sol = ?, current_price_sol = ?,
+                        amount = ?, market_value_sol = ?, cost_basis_sol = ?, realized_pnl_sol = ?,
+                        peak_price_sol = ?, take_profit_stage = ?, mode = ?, opened_at = ?, closed_at = ?,
+                        status = ?, updated_at = ?
+                    WHERE id = ?
+                    """,
+                    values + (position_id,),
+                )
+            else:
+                self.connection.execute(
+                    """
+                    INSERT INTO position_records (
+                        token_contract, token_symbol, entry_price_sol, current_price_sol, amount,
+                        market_value_sol, cost_basis_sol, realized_pnl_sol, peak_price_sol,
+                        take_profit_stage, mode, opened_at, closed_at, status, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    values,
+                )
+            self.connection.commit()
 
     def list_positions(self) -> list[dict[str, Any]]:
-        return list(self.connection.execute("SELECT * FROM position_records ORDER BY updated_at DESC, id DESC").fetchall())
+        return self._fetchall("SELECT * FROM position_records ORDER BY updated_at DESC, id DESC")
 
     def open_positions(self) -> list[dict[str, Any]]:
-        return list(
-            self.connection.execute(
-                "SELECT * FROM position_records WHERE status = 'open' ORDER BY updated_at DESC, id DESC"
-            ).fetchall()
-        )
+        return self._fetchall("SELECT * FROM position_records WHERE status = 'open' ORDER BY updated_at DESC, id DESC")
 
     def get_position(self, position_id: int) -> dict[str, Any] | None:
-        return self.connection.execute("SELECT * FROM position_records WHERE id = ?", (position_id,)).fetchone()
+        return self._fetchone("SELECT * FROM position_records WHERE id = ?", (position_id,))
 
     def latest_open_position(self, token_contract: str | None = None) -> dict[str, Any] | None:
         if token_contract:
-            return self.connection.execute(
+            return self._fetchone(
                 """
                 SELECT * FROM position_records
                 WHERE token_contract = ? AND status = 'open'
@@ -415,18 +412,18 @@ class Ledger:
                 LIMIT 1
                 """,
                 (token_contract,),
-            ).fetchone()
-        return self.connection.execute(
+            )
+        return self._fetchone(
             "SELECT * FROM position_records WHERE status = 'open' ORDER BY updated_at DESC, id DESC LIMIT 1"
-        ).fetchone()
+        )
 
     def latest_position(self, token_contract: str | None = None) -> dict[str, Any] | None:
         if token_contract:
-            return self.connection.execute(
+            return self._fetchone(
                 "SELECT * FROM position_records WHERE token_contract = ? ORDER BY updated_at DESC, id DESC LIMIT 1",
                 (token_contract,),
-            ).fetchone()
-        return self.connection.execute("SELECT * FROM position_records ORDER BY updated_at DESC, id DESC LIMIT 1").fetchone()
+            )
+        return self._fetchone("SELECT * FROM position_records ORDER BY updated_at DESC, id DESC LIMIT 1")
 
     def add_pnl_snapshot(
         self,
@@ -439,20 +436,19 @@ class Ledger:
         token_contract: str = "",
     ) -> None:
         total = realized + unrealized
-        self.connection.execute(
+        self._execute_commit(
             """
             INSERT INTO pnl_snapshots (mode, token_symbol, token_contract, realized, unrealized, total, open_positions, created_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (mode, token_symbol, token_contract, realized, unrealized, total, open_positions, now_iso()),
         )
-        self.connection.commit()
 
     def list_pnl(self, limit: int = 200) -> list[dict[str, Any]]:
-        return list(self.connection.execute("SELECT * FROM pnl_snapshots ORDER BY id DESC LIMIT ?", (limit,)).fetchall())
+        return self._fetchall("SELECT * FROM pnl_snapshots ORDER BY id DESC LIMIT ?", (limit,))
 
     def pnl_by_token(self) -> list[dict[str, Any]]:
-        rows = self.connection.execute(
+        rows = self._fetchall(
             """
             SELECT
                 token_symbol,
@@ -469,7 +465,7 @@ class Ledger:
             GROUP BY token_symbol, token_contract, mode
             ORDER BY MAX(updated_at) DESC
             """
-        ).fetchall()
+        )
         results: list[dict[str, Any]] = []
         for row in rows:
             cost_basis = as_float(row["cost_basis_sol"])
@@ -496,7 +492,7 @@ class Ledger:
         return results
 
     def pnl_overview(self) -> dict[str, Any]:
-        trade_counts = self.connection.execute(
+        trade_counts = self._fetchone(
             """
             SELECT
                 COUNT(*) AS total_trades,
@@ -504,8 +500,8 @@ class Ledger:
                 SUM(CASE WHEN side = 'sell' THEN 1 ELSE 0 END) AS sell_trades
             FROM trades
             """
-        ).fetchone() or {}
-        position_counts = self.connection.execute(
+        ) or {}
+        position_counts = self._fetchone(
             """
             SELECT
                 SUM(CASE WHEN status = 'open' THEN 1 ELSE 0 END) AS open_positions,
@@ -514,15 +510,15 @@ class Ledger:
                 SUM(CASE WHEN status = 'closed' AND realized_pnl_sol < 0 THEN 1 ELSE 0 END) AS losing_positions
             FROM position_records
             """
-        ).fetchone() or {}
-        pnl_totals = self.connection.execute(
+        ) or {}
+        pnl_totals = self._fetchone(
             """
             SELECT
                 SUM(realized_pnl_sol) AS realized_total,
                 SUM(CASE WHEN status = 'open' THEN market_value_sol - cost_basis_sol ELSE 0 END) AS unrealized_total
             FROM position_records
             """
-        ).fetchone() or {}
+        ) or {}
         realized_total = as_float(pnl_totals.get("realized_total"))
         unrealized_total = as_float(pnl_totals.get("unrealized_total"))
         return {
@@ -539,7 +535,7 @@ class Ledger:
         }
 
     def latest_pnl(self) -> dict[str, Any] | None:
-        return self.connection.execute("SELECT * FROM pnl_snapshots ORDER BY id DESC LIMIT 1").fetchone()
+        return self._fetchone("SELECT * FROM pnl_snapshots ORDER BY id DESC LIMIT 1")
 
     def summarize(self) -> dict[str, Any]:
         latest_trade = self.connection.execute("SELECT * FROM trades ORDER BY id DESC LIMIT 1").fetchone()
@@ -554,7 +550,7 @@ class Ledger:
         }
 
     def start_auto_run(self, *, ranking_type: str, budget_sol: float, risk_mode: str) -> None:
-        self.connection.execute(
+        self._execute_commit(
             """
             UPDATE auto_runs
             SET running = 1, mode = 'auto_live', ranking_type = ?, budget_sol = ?, risk_mode = ?,
@@ -563,10 +559,9 @@ class Ledger:
             """,
             (ranking_type, budget_sol, risk_mode, now_iso(), now_iso()),
         )
-        self.connection.commit()
 
     def stop_auto_run(self, paused_reason: str = "manual_stop") -> None:
-        self.connection.execute(
+        self._execute_commit(
             """
             UPDATE auto_runs
             SET running = 0, paused_reason = ?, stopped_at = ?, updated_at = ?
@@ -574,21 +569,19 @@ class Ledger:
             """,
             (paused_reason, now_iso(), now_iso()),
         )
-        self.connection.commit()
 
     def update_auto_run(self, **fields: Any) -> None:
         if not fields:
             return
         assignments = ", ".join(f"{key} = ?" for key in fields)
         values = list(fields.values()) + [now_iso()]
-        self.connection.execute(
+        self._execute_commit(
             f"UPDATE auto_runs SET {assignments}, updated_at = ? WHERE id = (SELECT id FROM auto_runs ORDER BY id DESC LIMIT 1)",
-            values,
+            tuple(values),
         )
-        self.connection.commit()
 
     def get_auto_status(self) -> dict[str, Any]:
-        row = self.connection.execute("SELECT * FROM auto_runs ORDER BY id DESC LIMIT 1").fetchone() or {}
+        row = self._fetchone("SELECT * FROM auto_runs ORDER BY id DESC LIMIT 1") or {}
         latest_pnl = self.latest_pnl() or {}
         consecutive_losses = self.count_recent_losses()
         return {
@@ -656,10 +649,7 @@ class Ledger:
         return counts
 
     def count_recent_losses(self, limit: int = 3) -> int:
-        rows = self.connection.execute(
-            "SELECT total FROM pnl_snapshots WHERE mode = 'auto_live' ORDER BY id DESC LIMIT ?",
-            (limit,),
-        ).fetchall()
+        rows = self._fetchall("SELECT total FROM pnl_snapshots WHERE mode = 'auto_live' ORDER BY id DESC LIMIT ?", (limit,))
         count = 0
         for row in rows:
             if as_float(row["total"]) < 0:
@@ -670,8 +660,8 @@ class Ledger:
 
     def today_pnl(self) -> float:
         today = datetime.now(timezone.utc).date().isoformat()
-        rows = self.connection.execute(
+        rows = self._fetchall(
             "SELECT realized FROM pnl_snapshots WHERE created_at LIKE ? AND mode IN ('auto_live', 'semi_auto_live') ORDER BY id DESC LIMIT 1",
             (f"{today}%",),
-        ).fetchall()
+        )
         return as_float(rows[0]["realized"]) if rows else 0.0

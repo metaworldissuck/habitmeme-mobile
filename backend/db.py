@@ -7,7 +7,11 @@ from typing import Iterator
 
 
 def _dict_factory(cursor: sqlite3.Cursor, row: tuple[object, ...]) -> dict[str, object]:
-    return {column[0]: row[idx] for idx, column in enumerate(cursor.description)}
+    if row is None:
+        return {}
+    description = cursor.description or ()
+    limit = min(len(row), len(description))
+    return {description[idx][0]: row[idx] for idx in range(limit)}
 
 
 def create_connection(db_path: Path) -> sqlite3.Connection:
