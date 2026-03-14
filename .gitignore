@@ -1,0 +1,10 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+backend/habitmeme.db
+backend/*.db
+image
+.gradle
+android-shell/.gradle/
+android-shell/app/build/

@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>HabitMeme Mobile</title>
+    <link rel="stylesheet" href="/static/style.css" />
+  </head>
+  <body>
+    <header class="hero">
+      <div>
+        <p class="eyebrow">Android Local Agent</p>
+        <h1>HabitMeme Mobile</h1>
+        <p class="subcopy">A Termux-powered Solana meme trading console with paper, semi-auto and auto modes.</p>
+      </div>
+      <div id="healthPill" class="pill">Checking backend…</div>
+    </header>
+
+    <nav class="tabs">
+      <button data-tab="dashboard" class="active">Dashboard</button>
+      <button data-tab="discover">Discover</button>
+      <button data-tab="review">Review</button>
+      <button data-tab="positions">Positions</button>
+      <button data-tab="pnl">PnL</button>
+      <button data-tab="auto">Auto</button>
+      <button data-tab="settings">Settings</button>
+    </nav>
+
+    <main>
+      <section id="dashboard" class="tab-panel active">
+        <div class="panel-grid">
+          <article class="card">
+            <h2>Summary</h2>
+            <div id="summaryBox" class="metric-grid">Loading…</div>
+          </article>
+          <article class="card">
+            <h2>Auto Runtime</h2>
+            <div id="riskBox" class="metric-grid">Loading…</div>
+          </article>
+        </div>
+        <article class="card">
+          <div class="inline-head">
+            <h2>Recent Positions</h2>
+            <button id="dashboardRefreshButton">Refresh</button>
+          </div>
+          <div id="dashboardPositions" class="table-wrap">Loading…</div>
+        </article>
+        <article class="card">
+          <h2>Auto Slots</h2>
+          <div id="dashboardAutoSlots" class="slot-grid">Loading slot details…</div>
+        </article>
+        <article class="card">
+          <h2>Auto Strategy Snapshot</h2>
+          <div id="dashboardAutoProfile" class="metric-grid">Loading strategy snapshot…</div>
+        </article>
+      </section>
+
+      <section id="discover" class="tab-panel">
+        <article class="card">
+          <h2>Discover Candidates</h2>
+          <form id="discoverForm" class="form-grid">
+            <label>
+              <span>Official Ranking Filter</span>
+              <select name="rankingType">
+                <option value="combined" selected>combined</option>
+                <option value="hotpicks">hotpicks</option>
+                <option value="top_gainers">top_gainers</option>
+              </select>
+            </label>
+            <label>
+              <span>Risk Mode</span>
+              <select name="riskMode">
+                <option value="conservative">conservative</option>
+                <option value="normal" selected>normal</option>
+                <option value="degen">degen</option>
+              </select>
+            </label>
+            <button type="submit">Find Candidates</button>
+          </form>
+          <div id="discoverResults">No discovery run yet.</div>
+        </article>
+      </section>
+
+      <section id="review" class="tab-panel">
+        <article class="card">
+          <h2>Trade Review</h2>
+          <div id="reviewSelection" class="panel-note">No token selected yet.</div>
+          <form id="reviewForm" class="form-grid">
+            <input type="hidden" name="positionId" />
+            <label>
+              <span>Mode</span>
+              <select name="mode">
+                <option value="paper" selected>paper</option>
+                <option value="semi_auto_live">semi_auto_live</option>
+                <option value="auto_live">auto_live</option>
+              </select>
+            </label>
+            <label>
+              <span>Side</span>
+              <select name="side">
+                <option value="buy" selected>buy</option>
+                <option value="sell">sell</option>
+              </select>
+            </label>
+            <label>
+              <span>Token Contract</span>
+              <input name="tokenContract" placeholder="Paste Solana contract" />
+            </label>
+            <label>
+              <span id="reviewAmountLabel">Budget (SOL)</span>
+              <input type="number" step="0.001" min="0.001" max="0.1" name="tradeAmount" value="0.02" />
+            </label>
+            <button type="button" id="prepareButton">Prepare</button>
+            <button type="button" id="executeButton">Execute</button>
+          </form>
+          <div id="reviewResults">No review prepared yet.</div>
+        </article>
+      </section>
+
+      <section id="positions" class="tab-panel">
+        <div class="stack">
+          <article class="card">
+            <div class="inline-head">
+              <h2>Open Positions</h2>
+              <button id="refreshPositionsButton">Refresh</button>
+            </div>
+            <div id="positionsOpenBox" class="table-wrap">Loading…</div>
+          </article>
+          <article class="card">
+            <h2>Position History</h2>
+            <div id="positionsHistoryBox" class="table-wrap">Loading…</div>
+          </article>
+        </div>
+      </section>
+
+      <section id="pnl" class="tab-panel">
+        <div class="stack">
+          <article class="card">
+            <div class="inline-head">
+              <h2>Overview</h2>
+              <button id="refreshPnlButton">Refresh</button>
+            </div>
+            <div id="pnlSummaryBox" class="metric-grid">Loading pnl summary…</div>
+          </article>
+          <article class="card">
+            <h2>By Token</h2>
+            <div id="pnlBox" class="table-wrap">Loading…</div>
+          </article>
+        </div>
+      </section>
+
+      <section id="auto" class="tab-panel">
+        <article class="card">
+          <h2>Auto Control</h2>
+          <p class="hint">Auto mode follows official ranking filters only.</p>
+          <form id="autoForm" class="form-grid">
+            <label>
+              <span>Official Ranking Filter</span>
+              <select name="rankingType">
+                <option value="combined" selected>combined</option>
+                <option value="hotpicks">hotpicks</option>
+                <option value="top_gainers">top_gainers</option>
+              </select>
+            </label>
+            <label>
+              <span>Budget (SOL)</span>
+              <input type="number" step="0.001" min="0.001" max="0.1" name="budgetSol" value="0.02" />
+            </label>
+            <label>
+              <span>Risk Mode</span>
+              <select name="riskMode">
+                <option value="conservative">conservative</option>
+                <option value="normal" selected>normal</option>
+                <option value="degen">degen</option>
+              </select>
+            </label>
+            <button type="button" id="startAutoButton">Start Auto</button>
+            <button type="button" id="stopAutoButton" class="secondary">Stop Auto</button>
+          </form>
+          <div id="autoStatusNote"></div>
+          <div id="autoBox" class="metric-grid">Loading auto status…</div>
+          <div class="stack">
+            <h3 class="section-title">Strategy Profile</h3>
+            <div id="autoProfileBox" class="metric-grid">Loading strategy profile…</div>
+          </div>
+          <div class="stack">
+            <h3 class="section-title">Auto Decision</h3>
+            <div id="autoDecisionBox">No auto decision snapshot yet.</div>
+          </div>
+          <div class="stack">
+            <h3 class="section-title">Portfolio Slots</h3>
+            <div id="autoSlotsBox" class="slot-grid">Loading slot details…</div>
+          </div>
+        </article>
+      </section>
+
+      <section id="settings" class="tab-panel">
+        <article class="card">
+          <h2>Settings</h2>
+          <form id="settingsForm" class="form-grid">
+            <h3 class="section-title">Basic</h3>
+            <label>
+              <span>Wallet Address</span>
+              <input name="walletAddress" />
+            </label>
+            <label>
+              <span>Default Budget</span>
+              <input type="number" step="0.001" min="0.001" max="0.1" name="defaultBudgetSol" />
+            </label>
+            <label>
+              <span>Budget Max</span>
+              <input type="number" step="0.001" min="0.001" name="budgetSolMax" />
+            </label>
+            <label>
+              <span>Default Mode</span>
+              <select name="defaultMode">
+                <option value="paper">paper</option>
+                <option value="semi_auto_live">semi_auto_live</option>
+                <option value="auto_live">auto_live</option>
+              </select>
+            </label>
+            <label>
+              <span>Default Risk Mode</span>
+              <select name="riskMode">
+                <option value="conservative">conservative</option>
+                <option value="normal">normal</option>
+                <option value="degen">degen</option>
+              </select>
+            </label>
+            <label>
+              <span>Default Ranking Filter</span>
+              <select name="rankingType">
+                <option value="combined">combined</option>
+                <option value="hotpicks">hotpicks</option>
+                <option value="top_gainers">top_gainers</option>
+              </select>
+            </label>
+
+            <h3 class="section-title">Advanced Strategy</h3>
+            <label>
+              <span>Min Liquidity USD</span>
+              <input type="number" step="1000" min="0" name="minLiquidityUsd" />
+            </label>
+            <label>
+              <span>Stop Loss Pct</span>
+              <input type="number" step="0.01" min="0" name="stopLossPct" />
+            </label>
+            <label>
+              <span>Recover Cost Basis Pct</span>
+              <input type="number" step="0.01" min="0" name="takeProfitCostBasisPct" />
+            </label>
+            <label>
+              <span>Half Take Profit Pct</span>
+              <input type="number" step="0.01" min="0" name="takeProfitHalfPct" />
+            </label>
+            <label>
+              <span>Moonbag Trigger Pct</span>
+              <input type="number" step="0.01" min="0" name="moonbagTriggerPct" />
+            </label>
+            <label>
+              <span>Moonbag Fraction</span>
+              <input type="number" step="0.01" min="0" max="1" name="moonbagFraction" />
+            </label>
+            <label>
+              <span>Max Hold Hours</span>
+              <input type="number" step="1" min="1" name="maxHoldHours" />
+            </label>
+            <label>
+              <span>Time Exit Max Gain Pct</span>
+              <input type="number" step="0.01" min="0" name="timeExitMaxGainPct" />
+            </label>
+            <label>
+              <span>Discover Interval Sec</span>
+              <input type="number" step="1" min="1" name="discoverInterval" />
+            </label>
+            <label>
+              <span>Order Poll Interval Sec</span>
+              <input type="number" step="1" min="1" name="orderPollInterval" />
+            </label>
+            <label>
+              <span>Order Poll Max</span>
+              <input type="number" step="1" min="1" name="orderPollMax" />
+            </label>
+            <label>
+              <span>Daily Loss Limit SOL</span>
+              <input type="number" step="0.001" min="0.001" name="autoDailyLossLimitSol" />
+            </label>
+            <label>
+              <span>Max Consecutive Losses</span>
+              <input type="number" step="1" min="1" name="autoMaxConsecutiveLosses" />
+            </label>
+            <label>
+              <span>Reserve SOL Balance</span>
+              <input type="number" step="0.001" min="0" name="reserveSolBalance" />
+            </label>
+            <div class="action-row">
+              <button type="submit">Save Settings</button>
+              <button type="button" id="clearPaperButton" class="secondary danger">Clear Paper Data</button>
+              <button type="button" id="clearHistoryButton" class="secondary danger">Clear All History</button>
+            </div>
+          </form>
+          <div id="settingsNotice"></div>
+          <div id="settingsBox" class="metric-grid">Loading settings…</div>
+        </article>
+      </section>
+    </main>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>

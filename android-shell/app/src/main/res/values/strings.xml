@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">HabitMeme Mobile</string>
+    <string name="status_checking">Checking local backend…</string>
+    <string name="status_missing">Backend not reachable. Start Termux service first.</string>
+    <string name="hint_body">This shell expects the FastAPI backend to run locally in Termux on port 8787.</string>
+    <string name="copy_command">Copy Termux Command</string>
+    <string name="retry_check">Retry Health Check</string>
+    <string name="use_dev_host">Use Dev Host (10.0.2.2)</string>
+</resources>
+
