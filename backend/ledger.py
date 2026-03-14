@@ -80,19 +80,21 @@ class Ledger:
         self.connection.commit()
 
     def get_setting(self, key: str) -> str | None:
-        row = self.connection.execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()
+        with self.lock:
+            row = self.connection.execute("SELECT value FROM settings WHERE key = ?", (str(key),)).fetchone()
         return None if not row else str(row["value"])
 
     def set_setting(self, key: str, value: Any) -> None:
-        self.connection.execute(
-            """
-            INSERT INTO settings (key, value, updated_at)
-            VALUES (?, ?, ?)
-            ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
-            """,
-            (key, str(value), now_iso()),
-        )
-        self.connection.commit()
+        with self.lock:
+            self.connection.execute(
+                """
+                INSERT INTO settings (key, value, updated_at)
+                VALUES (?, ?, ?)
+                ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
+                """,
+                (str(key), str(value), now_iso()),
+            )
+            self.connection.commit()
 
     def get_settings_payload(self) -> dict[str, Any]:
         payload = self.settings.as_public_dict()
@@ -111,6 +113,9 @@ class Ledger:
             "reserveSolBalance",
         }
         int_keys = {"discoverInterval", "orderPollInterval", "orderPollMax", "autoMaxConsecutiveLosses"}
+        with self.lock:
+            stored_rows = self.connection.execute("SELECT key, value FROM settings").fetchall()
+        stored = {str(row["key"]): str(row["value"]) for row in stored_rows}
         for key in (
             "walletAddress",
             "defaultBudgetSol",
@@ -133,7 +138,7 @@ class Ledger:
             "autoMaxConsecutiveLosses",
             "reserveSolBalance",
         ):
-            value = self.get_setting(key)
+            value = stored.get(key)
             if value is None:
                 continue
             if key in float_keys:
