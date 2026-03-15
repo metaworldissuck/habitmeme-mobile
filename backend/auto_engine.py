@@ -92,6 +92,10 @@ class AutoEngine:
 
     def status(self) -> dict[str, Any]:
         base_status = self.ledger.get_auto_status()
+        runtime_alive = bool(self.thread and self.thread.is_alive())
+        if base_status.get("running") and not runtime_alive:
+            self.ledger.update_auto_run(running=0, paused_reason="runtime_stopped", last_action="runtime_stopped")
+            base_status = self.ledger.get_auto_status()
         risk_mode = str(base_status.get("riskMode") or self.state.get("risk_mode") or "normal")
         profile = self.strategy.defaults.profile(risk_mode)
         open_positions = self.ledger.open_positions()
@@ -99,6 +103,8 @@ class AutoEngine:
         cooldown_active = self._cooldown_active(update_ledger=False)
         return {
             **base_status,
+            "running": runtime_alive,
+            "runtimeAlive": runtime_alive,
             **budget_context,
             "strategyProfile": self._profile_snapshot(profile),
             "slotPositions": self._slot_positions(profile, open_positions),

@@ -260,7 +260,7 @@ function syncAutoButtons(autoStatus = {}) {
   const stopButton = document.getElementById("stopAutoButton");
   if (!startButton || !stopButton) return;
 
-  const running = Boolean(autoStatus.running);
+  const running = Boolean(autoStatus.runtimeAlive ?? autoStatus.running);
   const pendingStart = autoActionPending === "start";
   const pendingStop = autoActionPending === "stop";
 

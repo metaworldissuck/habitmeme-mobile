@@ -3,7 +3,7 @@ from __future__ import annotations
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from backend.auto_engine import AutoEngine
 from backend.bgw_client import RateLimitedError
@@ -176,6 +176,7 @@ class StrategyTests(unittest.TestCase):
                 max_consecutive_losses=2,
             )
             engine.state = {"ranking_type": "combined", "budget_sol": 0.05, "risk_mode": "normal"}
+            engine.thread = Mock(is_alive=Mock(return_value=True))
             status = engine.status()
             self.assertEqual(status["slotsUsed"], 1)
             self.assertEqual(status["slotsMax"], 2)
@@ -217,6 +218,7 @@ class StrategyTests(unittest.TestCase):
                 max_consecutive_losses=2,
             )
             engine.state = {"ranking_type": "combined", "budget_sol": 0.02, "risk_mode": "normal"}
+            engine.thread = Mock(is_alive=Mock(return_value=True))
             status = engine.status()
             self.assertEqual(status["nextStep"], "waiting_for_budget_release")
             self.assertIn("budget", status["nextStepMessage"].lower())
@@ -243,6 +245,7 @@ class StrategyTests(unittest.TestCase):
                 max_consecutive_losses=2,
             )
             engine.state = {"ranking_type": "combined", "budget_sol": 0.05, "risk_mode": "normal"}
+            engine.thread = Mock(is_alive=Mock(return_value=True))
             with patch.object(strategy, "discover") as discover_mock:
                 engine._run_cycle()
             discover_mock.assert_not_called()
@@ -277,6 +280,32 @@ class StrategyTests(unittest.TestCase):
             self.assertEqual(status["cooldownReason"], "rate_limited")
             self.assertEqual(status["nextStep"], "cooldown_active")
             self.assertIn("retry", status["nextStepMessage"].lower())
+
+    def test_auto_status_clears_stale_running_flag_when_thread_is_dead(self) -> None:
+        strategy = DummyStrategy()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            settings = Settings(db_path=Path(tmpdir) / "habitmeme.db", legacy_root=Path(tmpdir) / "missing")
+            ledger = Ledger(settings)
+            ledger.initialize()
+            ledger.start_auto_run(ranking_type="combined", budget_sol=0.05, risk_mode="normal")
+            engine = AutoEngine(
+                ledger=ledger,
+                runner=Runner(DummyClient()),  # type: ignore[arg-type]
+                strategy=strategy,
+                default_wallet="wallet",
+                private_key_sol="secret",
+                discover_interval=90,
+                poll_interval=1,
+                poll_max=2,
+                reserve_sol_balance=0.02,
+                daily_loss_limit_sol=0.03,
+                max_consecutive_losses=2,
+            )
+            engine.state = {"ranking_type": "combined", "budget_sol": 0.05, "risk_mode": "normal"}
+            status = engine.status()
+            self.assertFalse(status["running"])
+            self.assertFalse(status["runtimeAlive"])
+            self.assertEqual(status["pausedReason"], "runtime_stopped")
 
     def test_quote_throttle_waits_for_min_interval(self) -> None:
         strategy = DummyStrategy()
