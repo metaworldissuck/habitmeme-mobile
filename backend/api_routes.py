@@ -458,7 +458,7 @@ def _prepare_live_trade(
         market=summary["market"],
         feature=feature,
     )
-    order_data = order.get("data", order)
+    order_data = _require_order_data(order, "order_create")
     order_id = str(order_data.get("orderId", ""))
     client_trade_id = payload.clientTradeId or f"semi-{uuid.uuid4().hex[:12]}"
     ledger.create_order(
@@ -553,7 +553,7 @@ def _execute_auto_trade(
         market=summary["market"],
         feature=feature,
     )
-    order_data = order.get("data", order)
+    order_data = _require_order_data(order, "order_create")
     order_id = str(order_data.get("orderId", ""))
     client_trade_id = payload.clientTradeId or f"auto-{uuid.uuid4().hex[:12]}"
     ledger.create_order(
@@ -631,6 +631,18 @@ def _poll_order_status(runner: Runner, order_id: str, poll_interval: float = 1.0
         time.sleep(poll_interval)
         payload = runner.order_status(order_id)
     return payload
+
+
+def _require_order_data(order: dict[str, Any], operation: str) -> dict[str, Any]:
+    if not isinstance(order, dict):
+        raise ServiceError(f"{operation} returned a non-object response")
+    order_data = order.get("data", order)
+    if not isinstance(order_data, dict):
+        raise ServiceError(f"{operation} returned empty order data")
+    order_id = str(order_data.get("orderId", ""))
+    if not order_id:
+        raise ServiceError(f"{operation} did not return an orderId")
+    return order_data
 
 
 def _resume_active_live_order(

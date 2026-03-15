@@ -8,7 +8,22 @@ Final submission implementation for the Android-local auto trading agent.
 - `web/`: folded into `backend/templates` and `backend/static`
 - `android-shell/`: Kotlin WebView wrapper
 - `docs/`: Android, Termux, demo, and submission docs
+- `skills/`: project skills, including the current project-wide strategy skill
 - `tests/`: smoke and unit-oriented checks
+
+## Strategy Skill
+
+For the current project-wide trading strategy and runtime semantics, see:
+
+- [`skills/habitmeme-mobile-strategy/SKILL.md`](skills/habitmeme-mobile-strategy/SKILL.md)
+
+This skill documents the implemented behavior for:
+
+- `paper / semi-auto / auto`
+- candidate discovery and filtering
+- exits, guards, and cooldowns
+- position/PnL semantics
+- Android-local runtime boundaries
 
 ## Local Run
 
@@ -18,7 +33,7 @@ cp .env.example .env
 uv run uvicorn backend.main:app --host 127.0.0.1 --port 8787
 ```
 
-If you are running inside Android Termux and hit the native Python 3.13 / `pydantic-core` build issue, use the Ubuntu `proot-distro` workaround documented in [docs/TERMUX_SETUP.md](/Users/imtoken-ljm/Desktop/test1/AI_PRJ/hackathon/habitmeme-mobile/docs/TERMUX_SETUP.md). The working startup command there becomes:
+If you are running inside Android Termux and hit the native Python 3.13 / `pydantic-core` build issue, use the Ubuntu `proot-distro` workaround documented in [`docs/TERMUX_SETUP.md`](docs/TERMUX_SETUP.md). The working startup command there becomes:
 
 ```bash
 cd /path/to/habitmeme-mobile

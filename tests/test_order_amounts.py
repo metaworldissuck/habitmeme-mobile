@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import Mock
 
-from backend.api_routes import _open_position_amount, _resolve_buy_amount, _resume_active_live_order
+from backend.api_routes import _open_position_amount, _require_order_data, _resolve_buy_amount, _resume_active_live_order
 from backend.config import Settings
 from backend.ledger import Ledger, now_iso
 from backend.models import OrderExecuteRequest
@@ -38,6 +38,10 @@ class DummyStrategy(StrategyEngine):
 
 
 class OrderAmountTests(unittest.TestCase):
+    def test_require_order_data_rejects_empty_data(self) -> None:
+        with self.assertRaisesRegex(Exception, "empty order data"):
+            _require_order_data({"status": 0, "data": None}, "order_create")
+
     def test_resolve_buy_amount_falls_back_to_spot_price(self) -> None:
         strategy = DummyStrategy()
         amount = _resolve_buy_amount(

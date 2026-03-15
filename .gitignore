@@ -9,3 +9,5 @@ image
 android-shell/.gradle/
 android-shell/app/build/
 .DS_Store
+docs/PROJECT_EXPLANATION_CN.md
+docs/PROJECT_EXPLANATION_EN.md

@@ -280,7 +280,7 @@ class AutoEngine:
             market=market,
             feature=feature,
         )
-        order_data = order.get("data", order)
+        order_data = self._require_order_data(order, "order_create")
         order_id = str(order_data.get("orderId", ""))
         self.ledger.create_order(
             {
@@ -449,7 +449,7 @@ class AutoEngine:
             from_address=self.default_wallet,
             market=market,
         )
-        order_data = order.get("data", order)
+        order_data = self._require_order_data(order, "order_create")
         order_id = str(order_data.get("orderId", ""))
         self.ledger.create_order(
             {
@@ -820,3 +820,14 @@ class AutoEngine:
             time.sleep(self.poll_interval)
             payload = self.runner.order_status(order_id)
         return payload
+
+    def _require_order_data(self, order: dict[str, Any], operation: str) -> dict[str, Any]:
+        if not isinstance(order, dict):
+            raise ServiceError(f"{operation} returned a non-object response")
+        order_data = order.get("data", order)
+        if not isinstance(order_data, dict):
+            raise ServiceError(f"{operation} returned empty order data")
+        order_id = str(order_data.get("orderId", ""))
+        if not order_id:
+            raise ServiceError(f"{operation} did not return an orderId")
+        return order_data

@@ -4,7 +4,7 @@
 
 1. Install `Termux` inside the Android emulator.
 2. Copy or clone this repo into the emulator.
-3. If native Termux `python3` is 3.13 and dependency install fails on `pydantic-core`, switch to the Ubuntu `proot-distro` flow from [TERMUX_SETUP.md](/Users/imtoken-ljm/Desktop/test1/AI_PRJ/hackathon/habitmeme-mobile/docs/TERMUX_SETUP.md).
+3. If native Termux `python3` is 3.13 and dependency install fails on `pydantic-core`, switch to the Ubuntu `proot-distro` flow from [`TERMUX_SETUP.md`](TERMUX_SETUP.md).
 4. Start the backend from the working Python environment:
    ```bash
    cd ~/storage/shared/hackathon/habitmeme-mobile
@@ -23,7 +23,7 @@
 
 1. On macOS:
    ```bash
-   cd /Users/imtoken-ljm/Desktop/test1/AI_PRJ/hackathon/habitmeme-mobile
+   cd /path/to/habitmeme-mobile
    uv run uvicorn backend.main:app --host 0.0.0.0 --port 8787
    ```
 2. In the Android emulator shell app, tap `Use Dev Host (10.0.2.2)`.
