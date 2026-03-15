@@ -515,6 +515,7 @@ class AutoEngine:
             is_closed = remaining_amount <= max(original_amount * 0.0001, 1e-9)
             self.ledger.upsert_position(
                 {
+                    "id": int(position["id"]),
                     "token_contract": token_contract,
                     "token_symbol": token_symbol,
                     "entry_price_sol": entry_price_sol,

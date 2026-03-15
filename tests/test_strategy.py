@@ -378,6 +378,56 @@ class StrategyTests(unittest.TestCase):
             order = ledger.get_order(order_id="order-1")
             self.assertEqual(order["status"], "success")
 
+    def test_auto_sell_updates_existing_position_instead_of_inserting_history_duplicate(self) -> None:
+        strategy = DummyStrategy()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            settings = Settings(db_path=Path(tmpdir) / "habitmeme.db", legacy_root=Path(tmpdir) / "missing")
+            ledger = Ledger(settings)
+            ledger.initialize()
+            ledger.upsert_position(
+                {
+                    "token_contract": "contract-1",
+                    "token_symbol": "TOK",
+                    "entry_price_sol": 0.01,
+                    "current_price_sol": 0.02,
+                    "amount": 5.0,
+                    "market_value_sol": 0.1,
+                    "cost_basis_sol": 0.05,
+                    "realized_pnl_sol": 0.0,
+                    "peak_price_sol": 0.02,
+                    "take_profit_stage": "entry",
+                    "mode": "auto_live",
+                    "opened_at": "2026-03-14T00:00:00+00:00",
+                    "status": "open",
+                    "updated_at": "2026-03-14T00:00:00+00:00",
+                }
+            )
+            position = ledger.latest_open_position("contract-1")
+            engine = AutoEngine(
+                ledger=ledger,
+                runner=Runner(DummyClient()),  # type: ignore[arg-type]
+                strategy=strategy,
+                default_wallet="wallet",
+                private_key_sol="secret",
+                discover_interval=90,
+                poll_interval=1,
+                poll_max=2,
+                reserve_sol_balance=0.02,
+                daily_loss_limit_sol=0.03,
+                max_consecutive_losses=2,
+            )
+            with patch.object(engine, "_quote_with_retry", return_value={"status": 0, "data": {}}):
+                with patch.object(strategy, "summarize_quote", return_value={"market": "mock-market", "toAmount": 0.11}):
+                    with patch.object(engine.runner, "order_create", return_value={"data": {"orderId": "sell-1"}}):
+                        with patch.object(engine.runner, "sign_order", return_value=["signed"]):
+                            with patch.object(engine.runner, "order_submit", return_value={"status": 0, "data": {"ok": True}}):
+                                with patch.object(engine, "_poll_status", return_value={"data": {"status": "success", "receiveAmount": 0.11}, "txs": [{"txId": "tx-1"}]}):
+                                    engine._execute_sell(position, {"reason": "manual_test", "fraction": 1.0, "next_stage": "moonbag"})
+            rows = ledger.list_positions()
+            self.assertEqual(len(rows), 1)
+            self.assertEqual(rows[0]["status"], "closed")
+            self.assertEqual(rows[0]["id"], position["id"])
+
     def test_discover_retries_once_before_skipping_cycle(self) -> None:
         strategy = DummyStrategy()
         with tempfile.TemporaryDirectory() as tmpdir:
