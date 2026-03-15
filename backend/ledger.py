@@ -497,7 +497,8 @@ class Ledger:
             SELECT
                 COUNT(*) AS total_trades,
                 SUM(CASE WHEN side = 'buy' THEN 1 ELSE 0 END) AS buy_trades,
-                SUM(CASE WHEN side = 'sell' THEN 1 ELSE 0 END) AS sell_trades
+                SUM(CASE WHEN side = 'sell' THEN 1 ELSE 0 END) AS sell_trades,
+                SUM(CASE WHEN side = 'buy' AND status = 'success' THEN amount_in_sol ELSE 0 END) AS gross_buy_sol
             FROM trades
             """
         ) or {}
@@ -521,17 +522,21 @@ class Ledger:
         ) or {}
         realized_total = as_float(pnl_totals.get("realized_total"))
         unrealized_total = as_float(pnl_totals.get("unrealized_total"))
+        gross_buy_sol = as_float(trade_counts.get("gross_buy_sol"))
+        total_pnl_sol = realized_total + unrealized_total
         return {
             "totalTrades": int(trade_counts.get("total_trades") or 0),
             "buyTrades": int(trade_counts.get("buy_trades") or 0),
             "sellTrades": int(trade_counts.get("sell_trades") or 0),
+            "grossBuySol": gross_buy_sol,
             "openPositions": int(position_counts.get("open_positions") or 0),
             "closedPositions": int(position_counts.get("closed_positions") or 0),
             "profitablePositions": int(position_counts.get("profitable_positions") or 0),
             "losingPositions": int(position_counts.get("losing_positions") or 0),
             "realizedPnlSol": realized_total,
             "unrealizedPnlSol": unrealized_total,
-            "totalPnlSol": realized_total + unrealized_total,
+            "totalPnlSol": total_pnl_sol,
+            "totalPnlPct": (total_pnl_sol / gross_buy_sol) if gross_buy_sol > 0 else 0.0,
         }
 
     def latest_pnl(self) -> dict[str, Any] | None:

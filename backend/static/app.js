@@ -289,7 +289,7 @@ function syncAutoButtons(autoStatus = {}) {
 
 function percentText(value) {
   if (value === null || value === undefined || value === "") return "-";
-  return `${fmt(Number(value) * 100, 1)}%`;
+  return `${fmt(Number(value) * 100, 2)}%`;
 }
 
 function takeProfitStageLabel(value) {
@@ -851,6 +851,7 @@ function formatPnl(payload) {
       { label: "Realized SOL", value: fmt(summary.realizedPnlSol, 6), cls: Number(summary.realizedPnlSol) >= 0 ? "good" : "bad" },
       { label: "Unrealized SOL", value: fmt(summary.unrealizedPnlSol, 6), cls: Number(summary.unrealizedPnlSol) >= 0 ? "good" : "bad" },
       { label: "Total SOL", value: fmt(summary.totalPnlSol, 6), cls: Number(summary.totalPnlSol) >= 0 ? "good" : "bad" },
+      { label: "Return %", value: percentText(summary.totalPnlPct), cls: Number(summary.totalPnlPct) >= 0 ? "good" : "bad" },
     ]);
   }
   pnlBox.innerHTML = renderPnlTokenTable(rows);
