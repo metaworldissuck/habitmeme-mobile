@@ -28,6 +28,7 @@ let formsBootstrapped = false;
 let autoActionPending = "";
 let autoMonitorTimer = null;
 let autoMonitorInFlight = false;
+let lastKnownAutoStatus = { running: false, runtimeAlive: false, cooldownActive: false };
 const appDefaults = {
   defaultBudgetSol: 0.02,
   budgetSolMax: 0.1,
@@ -260,7 +261,8 @@ function syncAutoButtons(autoStatus = {}) {
   const stopButton = document.getElementById("stopAutoButton");
   if (!startButton || !stopButton) return;
 
-  const running = Boolean(autoStatus.runtimeAlive ?? autoStatus.running);
+  const mergedStatus = { ...lastKnownAutoStatus, ...autoStatus };
+  const running = Boolean(mergedStatus.runtimeAlive ?? mergedStatus.running);
   const pendingStart = autoActionPending === "start";
   const pendingStop = autoActionPending === "stop";
 
@@ -386,7 +388,8 @@ function clearAutoMonitor() {
 }
 
 function shouldMonitorAuto(autoStatus = {}) {
-  return Boolean(autoStatus.running || autoStatus.cooldownActive);
+  const mergedStatus = { ...lastKnownAutoStatus, ...autoStatus };
+  return Boolean((mergedStatus.runtimeAlive ?? mergedStatus.running) || mergedStatus.cooldownActive);
 }
 
 async function pollAutoRuntime() {
@@ -448,6 +451,7 @@ function formatSummary(summary) {
 }
 
 function formatAuto(autoStatus) {
+  lastKnownAutoStatus = { ...lastKnownAutoStatus, ...autoStatus };
   const slotsUsed = Number(autoStatus.slotsUsed ?? autoStatus.openPositions ?? 0);
   const slotsMax = Number(autoStatus.slotsMax ?? 0);
   const slotLabel = slotsMax > 0 ? `${slotsUsed} / ${slotsMax}` : String(slotsUsed);
@@ -1073,6 +1077,7 @@ async function refreshAuto() {
     const payload = await api("/api/auto/status");
     formatAuto(payload.data);
   } catch (error) {
+    syncAutoButtons();
     autoBox.innerHTML = `<div class="empty">${error.message}</div>`;
     if (autoSlotsBox) {
       autoSlotsBox.innerHTML = "";
@@ -1354,7 +1359,10 @@ document.getElementById("startAutoButton").addEventListener("click", async () =>
   syncAutoButtons();
   showAutoNotice("pending", "Starting auto mode and loading the latest runtime state. The console will refresh when the backend confirms the new status.");
   try {
-    await api("/api/auto/start", { method: "POST", body: JSON.stringify(payload) });
+    const result = await api("/api/auto/start", { method: "POST", body: JSON.stringify(payload) });
+    if (result?.data) {
+      formatAuto(result.data);
+    }
     await refreshAllViews();
     scheduleFollowUpRefreshes();
   } catch (error) {
@@ -1372,7 +1380,10 @@ document.getElementById("stopAutoButton").addEventListener("click", async () => 
   syncAutoButtons();
   showAutoNotice("pending", "Stopping auto mode and waiting for the latest runtime state.");
   try {
-    await api("/api/auto/stop", { method: "POST", body: "{}" });
+    const result = await api("/api/auto/stop", { method: "POST", body: "{}" });
+    if (result?.data) {
+      formatAuto(result.data);
+    }
     await refreshAllViews();
   } catch (error) {
     showAutoNotice("error", `Auto stop failed: ${error.message}`);
