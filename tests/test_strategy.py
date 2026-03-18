@@ -53,6 +53,34 @@ class StrategyTests(unittest.TestCase):
         self.assertEqual(conservative.min_source_count, 2)
         self.assertLess(conservative.slot_budget_fraction, normal.slot_budget_fraction)
 
+    def test_profiles_derive_exit_thresholds_from_advanced_settings(self) -> None:
+        defaults = StrategyDefaults(
+            min_liquidity_usd=50_000,
+            stop_loss_pct=0.14,
+            take_profit_cost_basis_pct=0.33,
+            take_profit_half_pct=0.77,
+            moonbag_trigger_pct=1.55,
+            moonbag_fraction=0.12,
+            max_hold_hours=9,
+            time_exit_max_gain_pct=0.07,
+        )
+        normal = defaults.profile("normal")
+        conservative = defaults.profile("conservative")
+        degen = defaults.profile("degen")
+
+        self.assertAlmostEqual(normal.take_profit_cost_basis_pct, 0.33)
+        self.assertAlmostEqual(normal.take_profit_half_pct, 0.77)
+        self.assertAlmostEqual(normal.moonbag_trigger_pct, 1.55)
+        self.assertAlmostEqual(normal.max_hold_hours, 9)
+        self.assertAlmostEqual(normal.time_exit_max_gain_pct, 0.07)
+
+        self.assertAlmostEqual(conservative.take_profit_cost_basis_pct, 0.264)
+        self.assertAlmostEqual(conservative.take_profit_half_pct, 0.5775)
+        self.assertAlmostEqual(conservative.moonbag_trigger_pct, 1.209)
+        self.assertAlmostEqual(degen.take_profit_cost_basis_pct, 0.396)
+        self.assertAlmostEqual(degen.take_profit_half_pct, 0.9625)
+        self.assertAlmostEqual(degen.moonbag_trigger_pct, 1.705)
+
     def test_exit_signal_uses_two_x_cost_basis_recovery(self) -> None:
         strategy = DummyStrategy()
         signal = strategy.exit_signal_for_position(

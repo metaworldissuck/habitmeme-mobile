@@ -53,16 +53,19 @@ class StrategyDefaults:
     def profile(self, risk_mode: str) -> "StrategyProfile":
         normalized = risk_mode if risk_mode in {"conservative", "normal", "degen"} else "normal"
         if normalized == "conservative":
+            take_profit_cost_basis_pct = max(self.take_profit_cost_basis_pct * 0.8, 0.05)
+            take_profit_half_pct = max(self.take_profit_half_pct * 0.75, take_profit_cost_basis_pct + 0.25)
+            moonbag_trigger_pct = max(self.moonbag_trigger_pct * 0.78, take_profit_half_pct + 0.5)
             return StrategyProfile(
                 risk_mode=normalized,
                 min_liquidity_usd=max(self.min_liquidity_usd * 1.5, self.min_liquidity_usd + 15_000.0),
-                stop_loss_pct=min(self.stop_loss_pct, 0.10),
-                take_profit_cost_basis_pct=0.8,
-                take_profit_half_pct=3.0,
-                moonbag_trigger_pct=7.0,
+                stop_loss_pct=max(min(self.stop_loss_pct * 0.85, self.stop_loss_pct), 0.03),
+                take_profit_cost_basis_pct=take_profit_cost_basis_pct,
+                take_profit_half_pct=take_profit_half_pct,
+                moonbag_trigger_pct=moonbag_trigger_pct,
                 moonbag_fraction=min(self.moonbag_fraction, 0.08),
-                max_hold_hours=min(self.max_hold_hours, 18.0),
-                time_exit_max_gain_pct=min(self.time_exit_max_gain_pct, 0.08),
+                max_hold_hours=max(min(self.max_hold_hours * 0.75, self.max_hold_hours), 1.0),
+                time_exit_max_gain_pct=max(min(self.time_exit_max_gain_pct * 0.8, self.time_exit_max_gain_pct), 0.01),
                 max_open_positions=min(self.max_open_positions, 2),
                 min_holders=max(self.min_holders, 300),
                 min_social_links=max(self.min_social_links, 2),
@@ -75,16 +78,19 @@ class StrategyDefaults:
                 slot_budget_fraction=0.4,
             )
         if normalized == "degen":
+            take_profit_cost_basis_pct = max(self.take_profit_cost_basis_pct * 1.2, self.take_profit_cost_basis_pct)
+            take_profit_half_pct = max(self.take_profit_half_pct * 1.25, take_profit_cost_basis_pct + 0.25)
+            moonbag_trigger_pct = max(self.moonbag_trigger_pct * 1.1, take_profit_half_pct + 0.5)
             return StrategyProfile(
                 risk_mode=normalized,
                 min_liquidity_usd=max(self.min_liquidity_usd * 0.65, 30_000.0),
-                stop_loss_pct=max(self.stop_loss_pct, 0.18),
-                take_profit_cost_basis_pct=1.2,
-                take_profit_half_pct=5.0,
-                moonbag_trigger_pct=10.0,
+                stop_loss_pct=min(max(self.stop_loss_pct * 1.5, self.stop_loss_pct), 0.30),
+                take_profit_cost_basis_pct=take_profit_cost_basis_pct,
+                take_profit_half_pct=take_profit_half_pct,
+                moonbag_trigger_pct=moonbag_trigger_pct,
                 moonbag_fraction=max(self.moonbag_fraction, 0.15),
-                max_hold_hours=max(self.max_hold_hours, 30.0),
-                time_exit_max_gain_pct=max(self.time_exit_max_gain_pct, 0.18),
+                max_hold_hours=max(self.max_hold_hours * 1.25, self.max_hold_hours),
+                time_exit_max_gain_pct=max(self.time_exit_max_gain_pct * 1.8, self.time_exit_max_gain_pct),
                 max_open_positions=min(max(self.max_open_positions, 2), 2),
                 min_holders=max(120, min(self.min_holders, 120)),
                 min_social_links=1,
@@ -100,12 +106,12 @@ class StrategyDefaults:
             risk_mode=normalized,
             min_liquidity_usd=self.min_liquidity_usd,
             stop_loss_pct=self.stop_loss_pct,
-            take_profit_cost_basis_pct=1.0,
-            take_profit_half_pct=4.0,
-            moonbag_trigger_pct=9.0,
+            take_profit_cost_basis_pct=self.take_profit_cost_basis_pct,
+            take_profit_half_pct=self.take_profit_half_pct,
+            moonbag_trigger_pct=self.moonbag_trigger_pct,
             moonbag_fraction=max(self.moonbag_fraction, 0.1),
-            max_hold_hours=max(self.max_hold_hours, 24.0),
-            time_exit_max_gain_pct=max(self.time_exit_max_gain_pct, 0.1),
+            max_hold_hours=self.max_hold_hours,
+            time_exit_max_gain_pct=self.time_exit_max_gain_pct,
             max_open_positions=min(max(self.max_open_positions, 2), 2),
             min_holders=self.min_holders,
             min_social_links=self.min_social_links,
