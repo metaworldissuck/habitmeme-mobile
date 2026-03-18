@@ -793,8 +793,7 @@ function formatPositions(rows) {
   const openColumns = [
     {
       label: "Token",
-      render: (row) =>
-        `${row.token_symbol || "-"}<div class="cell-subtext">Position #${row.id || "-"}</div>`,
+      render: (row) => row.token_symbol || "-",
     },
     { label: "Status", render: (row) => badge(row.status || "-") },
     { label: "Amount", render: (row) => fmt(row.amount, 4) },
@@ -814,8 +813,7 @@ function formatPositions(rows) {
   const historyColumns = [
     {
       label: "Token",
-      render: (row) =>
-        `${row.token_symbol || "-"}<div class="cell-subtext">Position #${row.id || "-"}</div>`,
+      render: (row) => row.token_symbol || "-",
     },
     { label: "Status", render: (row) => badge(row.status || "-") },
     { label: "Amount", render: (row) => fmt(row.amount, 4) },

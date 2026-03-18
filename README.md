@@ -56,6 +56,50 @@ Runtime shape:
 - official Bitget Wallet APIs provide market and order primitives
 - SQLite is the local source of truth for orders, positions, and PnL
 
+## Trading Mode Flows
+
+```mermaid
+flowchart TD
+    U[User]
+    UI[Android App / H5 Console]
+    API[Local Backend API]
+    BGW[Bitget Wallet Official APIs]
+    DB[SQLite Ledger]
+    WALLET[External Wallet / Signing]
+    AUTO[Auto Engine]
+
+    subgraph Paper
+        U --> UI
+        UI --> API
+        API --> BGW
+        API --> DB
+        DB --> UI
+    end
+
+    subgraph SemiAuto
+        U --> UI
+        UI --> API
+        API --> BGW
+        API --> WALLET
+        WALLET --> BGW
+        API --> DB
+        DB --> UI
+    end
+
+    subgraph Auto
+        AUTO --> API
+        API --> BGW
+        API --> DB
+        DB --> UI
+    end
+```
+
+Mode summary:
+
+- `paper`: uses real discovery and quote data, but fills are simulated locally
+- `semi-auto`: backend prepares orders and the user confirms/signs externally
+- `auto`: the local auto engine handles discovery, filtering, entry, monitoring, and exits automatically while the backend runtime stays alive
+
 ## Local Run
 
 ```bash

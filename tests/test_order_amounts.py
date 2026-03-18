@@ -5,11 +5,18 @@ import unittest
 from pathlib import Path
 from unittest.mock import Mock
 
-from backend.api_routes import _open_position_amount, _require_order_data, _resolve_buy_amount, _resume_active_live_order
+from backend.api_routes import (
+    _open_position_amount,
+    _refresh_or_clear_active_order,
+    _require_order_data,
+    _resolve_buy_amount,
+    _resume_active_live_order,
+)
 from backend.config import Settings
 from backend.ledger import Ledger, now_iso
 from backend.models import OrderExecuteRequest
 from backend.runner import Runner
+from backend.runner import ServiceError
 from backend.strategy import StrategyDefaults, StrategyEngine
 
 
@@ -127,6 +134,45 @@ class OrderAmountTests(unittest.TestCase):
             runner.order_submit.assert_called_once_with("order-1", ["signed"])
             position = ledger.latest_position("contract-1")
             self.assertEqual(position["status"], "closed")
+
+    def test_refresh_or_clear_active_order_allows_new_trade_when_remote_order_is_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            settings = Settings(db_path=Path(tmpdir) / "habitmeme.db", legacy_root=Path(tmpdir) / "missing")
+            ledger = Ledger(settings)
+            ledger.initialize()
+            ledger.create_order(
+                {
+                    "order_id": "order-missing",
+                    "client_trade_id": "auto-test-missing",
+                    "side": "sell",
+                    "token_symbol": "TOK",
+                    "token_contract": "contract-1",
+                    "mode": "auto_live",
+                    "status": "submitted",
+                    "market": "mock-market",
+                    "amount_in_sol": 0.0,
+                    "amount_out": 0.1,
+                    "raw_order_json": {"data": {"orderId": "order-missing"}},
+                    "created_at": now_iso(),
+                    "updated_at": now_iso(),
+                }
+            )
+            runner = Mock()
+            runner.order_status.side_effect = ServiceError("HTTP 404: order not found")
+            strategy = DummyStrategy()
+
+            blocking = _refresh_or_clear_active_order(
+                active_order=ledger.get_active_order(),
+                ledger=ledger,
+                runner=runner,
+                strategy=strategy,
+                settings=settings,
+            )
+
+            self.assertIsNone(blocking)
+            refreshed = ledger.get_order(client_trade_id="auto-test-missing")
+            self.assertEqual(refreshed["status"], "failed")
+            self.assertEqual(refreshed["error_reason"], "remote_order_not_found")
 
 
 if __name__ == "__main__":

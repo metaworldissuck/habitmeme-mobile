@@ -434,7 +434,16 @@ def _prepare_live_trade(
         )
         if resumed is not None:
             return resumed
-        raise ServiceError("An active order already exists. Refresh order status before creating a new order.")
+        blocking_order = _refresh_or_clear_active_order(
+            active_order=active_order,
+            ledger=ledger,
+            runner=runner,
+            strategy=strategy,
+            settings=settings,
+        )
+        if blocking_order is not None:
+            active_token = str(blocking_order.get("token_symbol") or blocking_order.get("token_contract") or "another token")
+            raise ServiceError(f"An active order is still running for {active_token}. Refresh order status before creating a new order.")
     amount = payload.budgetSol or payload.tokenAmount or 0.0
     from_contract, to_contract = ("", payload.tokenContract) if payload.side == "buy" else (payload.tokenContract, "")
     position_id = _position_id_for_payload(ledger, payload)
@@ -529,7 +538,16 @@ def _execute_auto_trade(
         )
         if resumed is not None:
             return resumed
-        raise ServiceError("An active order already exists. Wait for it to finish.")
+        blocking_order = _refresh_or_clear_active_order(
+            active_order=active_order,
+            ledger=ledger,
+            runner=runner,
+            strategy=strategy,
+            settings=settings,
+        )
+        if blocking_order is not None:
+            active_token = str(blocking_order.get("token_symbol") or blocking_order.get("token_contract") or "another token")
+            raise ServiceError(f"An active order is still running for {active_token}. Wait for it to finish.")
     amount = payload.budgetSol or payload.tokenAmount or 0.0
     from_contract, to_contract = ("", payload.tokenContract) if payload.side == "buy" else (payload.tokenContract, "")
     position_id = _position_id_for_payload(ledger, payload)
@@ -643,6 +661,49 @@ def _require_order_data(order: dict[str, Any], operation: str) -> dict[str, Any]
     if not order_id:
         raise ServiceError(f"{operation} did not return an orderId")
     return order_data
+
+
+def _is_missing_remote_order_error(exc: Exception) -> bool:
+    message = str(exc).lower()
+    return any(marker in message for marker in ("http 404", "404:", "not found", "does not exist", "unknown order"))
+
+
+def _refresh_or_clear_active_order(
+    *,
+    active_order: dict[str, Any],
+    ledger: Ledger,
+    runner: Runner,
+    strategy: StrategyEngine,
+    settings: Settings,
+) -> dict[str, Any] | None:
+    client_trade_id = str(active_order.get("client_trade_id") or "")
+    active_order_id = str(active_order.get("order_id") or "")
+    if not client_trade_id:
+        return None
+    if not active_order_id:
+        ledger.update_order(client_trade_id, status="failed", error_reason="invalid_active_order_missing_order_id")
+        return None
+    try:
+        remote_status = runner.order_status(active_order_id)
+    except (RateLimitedError, CircuitOpenError):
+        raise
+    except Exception as exc:
+        if _is_missing_remote_order_error(exc):
+            ledger.update_order(client_trade_id, status="failed", error_reason="remote_order_not_found")
+            return None
+        return active_order
+    remote_item = remote_status.get("data", remote_status)
+    remote_state = str(remote_item.get("status", "")).lower()
+    if remote_state in {"success", "failed", "refunded"}:
+        _reconcile_remote_order(
+            db_order=active_order,
+            remote_status=remote_status,
+            ledger=ledger,
+            strategy=strategy,
+            settings=settings,
+        )
+        return None
+    return ledger.get_order(client_trade_id=client_trade_id) or active_order
 
 
 def _resume_active_live_order(
