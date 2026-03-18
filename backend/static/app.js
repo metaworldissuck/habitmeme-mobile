@@ -29,6 +29,7 @@ let autoActionPending = "";
 let autoMonitorTimer = null;
 let autoMonitorInFlight = false;
 let lastKnownAutoStatus = { running: false, runtimeAlive: false, cooldownActive: false };
+let latestSettingsData = null;
 const appDefaults = {
   defaultBudgetSol: 0.02,
   budgetSolMax: 0.1,
@@ -292,6 +293,120 @@ function percentText(value) {
   return `${fmt(Number(value) * 100, 2)}%`;
 }
 
+function numOr(value, fallback) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function buildStrategyProfilePreview(settingsData, riskMode) {
+  const normalized = ["conservative", "normal", "degen"].includes(riskMode) ? riskMode : "normal";
+  const base = {
+    minLiquidityUsd: numOr(settingsData?.minLiquidityUsd, 60000),
+    stopLossPct: numOr(settingsData?.stopLossPct, 0.12),
+    takeProfitCostBasisPct: numOr(settingsData?.takeProfitCostBasisPct, 0.45),
+    takeProfitHalfPct: numOr(settingsData?.takeProfitHalfPct, 0.9),
+    moonbagTriggerPct: numOr(settingsData?.moonbagTriggerPct, 1.8),
+    moonbagFraction: numOr(settingsData?.moonbagFraction, 0.1),
+    maxHoldHours: numOr(settingsData?.maxHoldHours, 18),
+    timeExitMaxGainPct: numOr(settingsData?.timeExitMaxGainPct, 0.1),
+    minHolders: 200,
+    minSocialLinks: 1,
+    maxTop10HolderPercent: 55,
+    maxInsiderHolderPercent: 15,
+    maxSniperHolderPercent: 18,
+    maxDevHolderPercent: 8,
+    maxDevRugPercent: 15,
+  };
+
+  if (normalized === "conservative") {
+    const takeProfitCostBasisPct = Math.max(base.takeProfitCostBasisPct * 0.8, 0.05);
+    const takeProfitHalfPct = Math.max(base.takeProfitHalfPct * 0.75, takeProfitCostBasisPct + 0.25);
+    const moonbagTriggerPct = Math.max(base.moonbagTriggerPct * 0.78, takeProfitHalfPct + 0.5);
+    return {
+      riskMode: normalized,
+      baseMinLiquidityUsd: base.minLiquidityUsd,
+      minLiquidityUsd: Math.max(base.minLiquidityUsd * 1.5, base.minLiquidityUsd + 15000),
+      stopLossPct: Math.max(Math.min(base.stopLossPct * 0.85, base.stopLossPct), 0.03),
+      takeProfitCostBasisPct,
+      takeProfitHalfPct,
+      moonbagTriggerPct,
+      moonbagFraction: Math.min(base.moonbagFraction, 0.08),
+      maxHoldHours: Math.max(Math.min(base.maxHoldHours * 0.75, base.maxHoldHours), 1),
+      timeExitMaxGainPct: Math.max(Math.min(base.timeExitMaxGainPct * 0.8, base.timeExitMaxGainPct), 0.01),
+      maxOpenPositions: 1,
+      minHolders: Math.max(base.minHolders, 300),
+      minSocialLinks: Math.max(base.minSocialLinks, 2),
+      minSourceCount: 2,
+      slotBudgetFraction: 0.4,
+      maxTop10HolderPercent: Math.min(base.maxTop10HolderPercent, 50),
+      maxInsiderHolderPercent: Math.min(base.maxInsiderHolderPercent, 12),
+      maxSniperHolderPercent: Math.min(base.maxSniperHolderPercent, 15),
+      maxDevHolderPercent: Math.min(base.maxDevHolderPercent, 6),
+      maxDevRugPercent: Math.min(base.maxDevRugPercent, 10),
+    };
+  }
+
+  if (normalized === "degen") {
+    const takeProfitCostBasisPct = Math.max(base.takeProfitCostBasisPct * 1.2, base.takeProfitCostBasisPct);
+    const takeProfitHalfPct = Math.max(base.takeProfitHalfPct * 1.25, takeProfitCostBasisPct + 0.25);
+    const moonbagTriggerPct = Math.max(base.moonbagTriggerPct * 1.1, takeProfitHalfPct + 0.5);
+    return {
+      riskMode: normalized,
+      baseMinLiquidityUsd: base.minLiquidityUsd,
+      minLiquidityUsd: Math.max(base.minLiquidityUsd * 0.65, 30000),
+      stopLossPct: Math.min(Math.max(base.stopLossPct * 1.5, base.stopLossPct), 0.3),
+      takeProfitCostBasisPct,
+      takeProfitHalfPct,
+      moonbagTriggerPct,
+      moonbagFraction: Math.max(base.moonbagFraction, 0.15),
+      maxHoldHours: Math.max(base.maxHoldHours * 1.25, base.maxHoldHours),
+      timeExitMaxGainPct: Math.max(base.timeExitMaxGainPct * 1.8, base.timeExitMaxGainPct),
+      maxOpenPositions: 2,
+      minHolders: 120,
+      minSocialLinks: 1,
+      minSourceCount: 1,
+      slotBudgetFraction: 0.6,
+      maxTop10HolderPercent: Math.max(base.maxTop10HolderPercent, 60),
+      maxInsiderHolderPercent: Math.max(base.maxInsiderHolderPercent, 18),
+      maxSniperHolderPercent: Math.max(base.maxSniperHolderPercent, 22),
+      maxDevHolderPercent: Math.max(base.maxDevHolderPercent, 9),
+      maxDevRugPercent: Math.max(base.maxDevRugPercent, 18),
+    };
+  }
+
+  return {
+    riskMode: normalized,
+    baseMinLiquidityUsd: base.minLiquidityUsd,
+    minLiquidityUsd: base.minLiquidityUsd,
+    stopLossPct: base.stopLossPct,
+    takeProfitCostBasisPct: base.takeProfitCostBasisPct,
+    takeProfitHalfPct: base.takeProfitHalfPct,
+    moonbagTriggerPct: base.moonbagTriggerPct,
+    moonbagFraction: Math.max(base.moonbagFraction, 0.1),
+    maxHoldHours: base.maxHoldHours,
+    timeExitMaxGainPct: base.timeExitMaxGainPct,
+    maxOpenPositions: 2,
+    minHolders: base.minHolders,
+    minSocialLinks: base.minSocialLinks,
+    minSourceCount: 1,
+    slotBudgetFraction: 0.5,
+    maxTop10HolderPercent: base.maxTop10HolderPercent,
+    maxInsiderHolderPercent: base.maxInsiderHolderPercent,
+    maxSniperHolderPercent: base.maxSniperHolderPercent,
+    maxDevHolderPercent: base.maxDevHolderPercent,
+    maxDevRugPercent: base.maxDevRugPercent,
+  };
+}
+
+function updateAutoProfilePreview() {
+  if (!latestSettingsData || lastKnownAutoStatus.running || lastKnownAutoStatus.runtimeAlive) return;
+  const autoForm = document.getElementById("autoForm");
+  const selectedRiskMode = autoForm?.riskMode?.value || latestSettingsData.riskMode || "normal";
+  const preview = buildStrategyProfilePreview(latestSettingsData, selectedRiskMode);
+  formatStrategyProfile(preview);
+  formatDashboardStrategySnapshot(preview);
+}
+
 function takeProfitStageLabel(value) {
   const labels = {
     entry: "Entry",
@@ -498,6 +613,7 @@ function formatAuto(autoStatus) {
   formatAutoDecision(autoStatus.decisionSnapshot || {});
   formatSlotCards(autoSlotsBox, autoStatus.slotPositions || [], "No slot data yet.");
   scheduleAutoMonitor(autoStatus);
+  updateAutoProfilePreview();
 }
 
 function formatStrategyProfile(profile) {
@@ -909,6 +1025,7 @@ function showAutoNotice(status, message) {
 
 function applySettingsToForms(data, { force = false } = {}) {
   if (!data) return;
+  latestSettingsData = data;
   appDefaults.defaultBudgetSol = Number(data.defaultBudgetSol || appDefaults.defaultBudgetSol || 0.02);
   appDefaults.budgetSolMax = Number(data.budgetSolMax || appDefaults.budgetSolMax || 0.1);
   appDefaults.defaultMode = data.defaultMode || appDefaults.defaultMode || "paper";
@@ -936,6 +1053,7 @@ function applySettingsToForms(data, { force = false } = {}) {
   }
 
   formsBootstrapped = true;
+  updateAutoProfilePreview();
 }
 
 function updateReviewSelection() {
@@ -1096,6 +1214,7 @@ async function refreshAuto() {
 async function refreshSettings() {
   try {
     const payload = await api("/api/settings");
+    latestSettingsData = payload.data;
     formatSettings(payload.data);
     const form = document.getElementById("settingsForm");
     form.walletAddress.value = payload.data.walletAddress || "";
@@ -1119,6 +1238,7 @@ async function refreshSettings() {
     form.autoMaxConsecutiveLosses.value = payload.data.autoMaxConsecutiveLosses || 2;
     form.reserveSolBalance.value = payload.data.reserveSolBalance || 0.02;
     applySettingsToForms(payload.data);
+    updateAutoProfilePreview();
   } catch (error) {
     settingsBox.innerHTML = `<div class="empty">${error.message}</div>`;
   }
@@ -1371,6 +1491,10 @@ document.getElementById("startAutoButton").addEventListener("click", async () =>
     autoActionPending = "";
     await refreshAuto();
   }
+});
+
+document.querySelector('#autoForm [name="riskMode"]').addEventListener("change", () => {
+  updateAutoProfilePreview();
 });
 
 document.getElementById("stopAutoButton").addEventListener("click", async () => {
