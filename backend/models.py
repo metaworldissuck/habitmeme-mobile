@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 TradeMode = Literal["paper", "semi_auto_live", "auto_live"]
 RiskMode = Literal["conservative", "normal", "degen"]
 RankingType = Literal["combined", "hotpicks", "top_gainers"]
+PositionSizingMode = Literal["slot_cap", "equal_remaining"]
 
 
 class DiscoverRequest(BaseModel):
@@ -51,6 +52,7 @@ class SettingsPayload(BaseModel):
     autoDailyLossLimitSol: float | None = Field(default=None, gt=0)
     autoMaxConsecutiveLosses: int | None = Field(default=None, gt=0)
     reserveSolBalance: float | None = Field(default=None, ge=0)
+    positionSizingMode: PositionSizingMode | None = None
 
 
 class AutoStartRequest(BaseModel):

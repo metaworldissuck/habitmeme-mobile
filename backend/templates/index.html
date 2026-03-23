@@ -293,6 +293,13 @@
               <span>Reserve SOL Balance</span>
               <input type="number" step="0.001" min="0" name="reserveSolBalance" />
             </label>
+            <label>
+              <span>Position Sizing Mode</span>
+              <select name="positionSizingMode">
+                <option value="slot_cap">slot_cap</option>
+                <option value="equal_remaining">equal_remaining</option>
+              </select>
+            </label>
             <div class="action-row">
               <button type="submit">Save Settings</button>
               <button type="button" id="clearPaperButton" class="secondary danger">Clear Paper Data</button>

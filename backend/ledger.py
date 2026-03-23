@@ -71,6 +71,7 @@ class Ledger:
             "autoDailyLossLimitSol": self.settings.auto_daily_loss_limit_sol,
             "autoMaxConsecutiveLosses": self.settings.auto_max_consecutive_losses,
             "reserveSolBalance": self.settings.reserve_sol_balance,
+            "positionSizingMode": self.settings.position_sizing_mode,
         }.items():
             if value in (None, ""):
                 continue
@@ -146,6 +147,7 @@ class Ledger:
             "autoDailyLossLimitSol",
             "autoMaxConsecutiveLosses",
             "reserveSolBalance",
+            "positionSizingMode",
         ):
             value = stored.get(key)
             if value is None:

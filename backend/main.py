@@ -53,6 +53,7 @@ def build_runtime() -> dict[str, Any]:
         poll_interval=settings.order_poll_interval,
         poll_max=settings.order_poll_max,
         reserve_sol_balance=settings.reserve_sol_balance,
+        position_sizing_mode=settings.position_sizing_mode,
         daily_loss_limit_sol=settings.auto_daily_loss_limit_sol,
         max_consecutive_losses=settings.auto_max_consecutive_losses,
     )

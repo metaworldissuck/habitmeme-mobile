@@ -36,6 +36,7 @@ class AutoEngine:
         poll_interval: int,
         poll_max: int,
         reserve_sol_balance: float,
+        position_sizing_mode: str = "slot_cap",
         daily_loss_limit_sol: float,
         max_consecutive_losses: int,
     ) -> None:
@@ -48,6 +49,7 @@ class AutoEngine:
         self.poll_interval = poll_interval
         self.poll_max = poll_max
         self.reserve_sol_balance = reserve_sol_balance
+        self.position_sizing_mode = position_sizing_mode
         self.daily_loss_limit_sol = daily_loss_limit_sol
         self.max_consecutive_losses = max_consecutive_losses
         self.stop_event = threading.Event()
@@ -571,7 +573,12 @@ class AutoEngine:
         deployable_budget = max(total_budget - reserve, 0.0)
         available_budget = max(deployable_budget - deployed, 0.0)
         slot_cap = max(total_budget * float(profile.slot_budget_fraction), 0.0)
-        next_slot_budget = min(available_budget, slot_cap)
+        slots_remaining = max(int(profile.max_open_positions) - len(open_positions), 1)
+        equal_remaining_budget = available_budget / slots_remaining if slots_remaining > 0 else 0.0
+        if self.position_sizing_mode == "equal_remaining":
+            next_slot_budget = min(available_budget, equal_remaining_budget)
+        else:
+            next_slot_budget = min(available_budget, slot_cap)
         return {
             "slotsUsed": len(open_positions),
             "slotsMax": int(profile.max_open_positions),
@@ -580,6 +587,9 @@ class AutoEngine:
             "deployedBudgetSol": deployed,
             "availableBudgetSol": available_budget,
             "nextSlotBudgetSol": next_slot_budget,
+            "slotsRemaining": slots_remaining,
+            "equalRemainingBudgetSol": equal_remaining_budget,
+            "positionSizingMode": self.position_sizing_mode,
         }
 
     def _profile_snapshot(self, profile: Any) -> dict[str, Any]:
@@ -589,6 +599,7 @@ class AutoEngine:
             "minLiquidityUsd": float(profile.min_liquidity_usd),
             "maxOpenPositions": int(profile.max_open_positions),
             "slotBudgetFraction": float(profile.slot_budget_fraction),
+            "positionSizingMode": self.position_sizing_mode,
             "stopLossPct": float(profile.stop_loss_pct),
             "takeProfitCostBasisPct": float(profile.take_profit_cost_basis_pct),
             "takeProfitHalfPct": float(profile.take_profit_half_pct),

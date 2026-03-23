@@ -36,6 +36,7 @@ const appDefaults = {
   defaultMode: "paper",
   riskMode: "normal",
   rankingType: "combined",
+  positionSizingMode: "slot_cap",
 };
 
 function authHeaders() {
@@ -324,6 +325,7 @@ function buildStrategyProfilePreview(settingsData, riskMode) {
     const moonbagTriggerPct = Math.max(base.moonbagTriggerPct * 0.78, takeProfitHalfPct + 0.5);
     return {
       riskMode: normalized,
+      positionSizingMode: settingsData?.positionSizingMode || "slot_cap",
       baseMinLiquidityUsd: base.minLiquidityUsd,
       minLiquidityUsd: Math.max(base.minLiquidityUsd * 1.5, base.minLiquidityUsd + 15000),
       stopLossPct: Math.max(Math.min(base.stopLossPct * 0.85, base.stopLossPct), 0.03),
@@ -352,6 +354,7 @@ function buildStrategyProfilePreview(settingsData, riskMode) {
     const moonbagTriggerPct = Math.max(base.moonbagTriggerPct * 1.1, takeProfitHalfPct + 0.5);
     return {
       riskMode: normalized,
+      positionSizingMode: settingsData?.positionSizingMode || "slot_cap",
       baseMinLiquidityUsd: base.minLiquidityUsd,
       minLiquidityUsd: Math.max(base.minLiquidityUsd * 0.65, 30000),
       stopLossPct: Math.min(Math.max(base.stopLossPct * 1.5, base.stopLossPct), 0.3),
@@ -376,6 +379,7 @@ function buildStrategyProfilePreview(settingsData, riskMode) {
 
   return {
     riskMode: normalized,
+    positionSizingMode: settingsData?.positionSizingMode || "slot_cap",
     baseMinLiquidityUsd: base.minLiquidityUsd,
     minLiquidityUsd: base.minLiquidityUsd,
     stopLossPct: base.stopLossPct,
@@ -626,6 +630,7 @@ function formatStrategyProfile(profile) {
   const effectiveMinLiquidity = Number(profile.minLiquidityUsd);
   renderMetrics(autoProfileBox, [
     { label: "Risk Mode", value: profile.riskMode || "-" },
+    { label: "Position Sizing", value: profile.positionSizingMode || "-" },
     { label: "Base Min Liquidity", value: `$${fmt(baseMinLiquidity, 0)}` },
     {
       label: "Effective Min Liquidity",
@@ -662,6 +667,7 @@ function formatDashboardStrategySnapshot(profile) {
   const effectiveMinLiquidity = Number(profile.minLiquidityUsd);
   renderMetrics(dashboardAutoProfile, [
     { label: "Risk Mode", value: profile.riskMode || "-" },
+    { label: "Position Sizing", value: profile.positionSizingMode || "-" },
     { label: "Slots", value: profile.maxOpenPositions ?? "-" },
     { label: "Base Min Liquidity", value: `$${fmt(baseMinLiquidity, 0)}` },
     { label: "Effective Min Liquidity", value: `$${fmt(effectiveMinLiquidity, 0)}` },
@@ -1011,6 +1017,7 @@ function formatSettings(data) {
     { label: "Stop Loss", value: percentText(data.stopLossPct) },
     { label: "Half Take Profit", value: percentText(data.takeProfitHalfPct) },
     { label: "Reserve SOL", value: fmt(data.reserveSolBalance, 3) },
+    { label: "Position Sizing", value: data.positionSizingMode || "-" },
   ]);
 }
 
@@ -1031,6 +1038,7 @@ function applySettingsToForms(data, { force = false } = {}) {
   appDefaults.defaultMode = data.defaultMode || appDefaults.defaultMode || "paper";
   appDefaults.riskMode = data.riskMode || appDefaults.riskMode || "normal";
   appDefaults.rankingType = data.rankingType || appDefaults.rankingType || "combined";
+  appDefaults.positionSizingMode = data.positionSizingMode || appDefaults.positionSizingMode || "slot_cap";
 
   syncGlobalBudgetLimits(appDefaults.budgetSolMax);
   syncDefaultRiskMode(appDefaults.riskMode);
@@ -1237,6 +1245,7 @@ async function refreshSettings() {
     form.autoDailyLossLimitSol.value = payload.data.autoDailyLossLimitSol || 0.03;
     form.autoMaxConsecutiveLosses.value = payload.data.autoMaxConsecutiveLosses || 2;
     form.reserveSolBalance.value = payload.data.reserveSolBalance || 0.02;
+    form.positionSizingMode.value = payload.data.positionSizingMode || "slot_cap";
     applySettingsToForms(payload.data);
     updateAutoProfilePreview();
   } catch (error) {
@@ -1541,6 +1550,7 @@ document.getElementById("settingsForm").addEventListener("submit", async (event)
     autoDailyLossLimitSol: Number(formData.get("autoDailyLossLimitSol")),
     autoMaxConsecutiveLosses: Number(formData.get("autoMaxConsecutiveLosses")),
     reserveSolBalance: Number(formData.get("reserveSolBalance")),
+    positionSizingMode: formData.get("positionSizingMode"),
   };
   try {
     showSettingsNotice("");

@@ -9,6 +9,15 @@ from backend.ledger import Ledger
 
 
 class LedgerTests(unittest.TestCase):
+    def test_settings_payload_includes_position_sizing_mode(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            settings = Settings(db_path=Path(tmpdir) / "habitmeme.db", legacy_root=Path(tmpdir) / "missing")
+            settings.position_sizing_mode = "equal_remaining"
+            ledger = Ledger(settings)
+            ledger.initialize()
+            payload = ledger.get_settings_payload()
+            self.assertEqual(payload["positionSizingMode"], "equal_remaining")
+
     def test_same_token_positions_are_preserved_as_history_rows(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             settings = Settings(db_path=Path(tmpdir) / "habitmeme.db", legacy_root=Path(tmpdir) / "missing")

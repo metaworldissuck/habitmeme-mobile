@@ -68,6 +68,7 @@ class Settings:
     auto_max_consecutive_losses: int = int(os.getenv("HMS_AUTO_MAX_CONSECUTIVE_LOSSES", "2"))
     auto_daily_loss_limit_sol: float = float(os.getenv("HMS_AUTO_DAILY_LOSS_LIMIT_SOL", "0.03"))
     reserve_sol_balance: float = float(os.getenv("HMS_RESERVE_SOL_BALANCE", "0.02"))
+    position_sizing_mode: str = os.getenv("HMS_POSITION_SIZING_MODE", "slot_cap")
 
     def as_public_dict(self) -> dict[str, object]:
         return {
@@ -91,6 +92,7 @@ class Settings:
             "autoDailyLossLimitSol": self.auto_daily_loss_limit_sol,
             "autoMaxConsecutiveLosses": self.auto_max_consecutive_losses,
             "reserveSolBalance": self.reserve_sol_balance,
+            "positionSizingMode": self.position_sizing_mode,
             "privateKeyConfigured": bool(self.private_key_sol),
             "apiTokenConfigured": bool(self.api_token),
         }

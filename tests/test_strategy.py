@@ -165,6 +165,35 @@ class StrategyTests(unittest.TestCase):
             )
             self.assertAlmostEqual(budget_after_one_slot, 0.005, places=9)
 
+    def test_auto_slot_budget_can_split_evenly_by_remaining_slots(self) -> None:
+        strategy = DummyStrategy()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            settings = Settings(db_path=Path(tmpdir) / "habitmeme.db", legacy_root=Path(tmpdir) / "missing")
+            ledger = Ledger(settings)
+            ledger.initialize()
+            engine = AutoEngine(
+                ledger=ledger,
+                runner=Runner(DummyClient()),  # type: ignore[arg-type]
+                strategy=strategy,
+                default_wallet="wallet",
+                private_key_sol="secret",
+                discover_interval=90,
+                poll_interval=1,
+                poll_max=2,
+                reserve_sol_balance=0.01,
+                position_sizing_mode="equal_remaining",
+                daily_loss_limit_sol=0.03,
+                max_consecutive_losses=2,
+            )
+            engine.state = {"ranking_type": "combined", "budget_sol": 0.04, "risk_mode": "normal"}
+            budget = engine._slot_budget_sol(strategy.defaults.profile("normal"), [])
+            self.assertAlmostEqual(budget, 0.015, places=9)
+            budget_after_one_slot = engine._slot_budget_sol(
+                strategy.defaults.profile("normal"),
+                [{"cost_basis_sol": 0.015}],
+            )
+            self.assertAlmostEqual(budget_after_one_slot, 0.015, places=9)
+
     def test_auto_status_exposes_slot_and_reserve_budget_context(self) -> None:
         strategy = DummyStrategy()
         with tempfile.TemporaryDirectory() as tmpdir:

@@ -45,6 +45,7 @@ def create_api_router(
         "autoDailyLossLimitSol": "auto_daily_loss_limit_sol",
         "autoMaxConsecutiveLosses": "auto_max_consecutive_losses",
         "reserveSolBalance": "reserve_sol_balance",
+        "positionSizingMode": "position_sizing_mode",
     }
 
     def validate_budget(amount: float | None) -> None:
@@ -74,6 +75,7 @@ def create_api_router(
         auto_engine.daily_loss_limit_sol = settings.auto_daily_loss_limit_sol
         auto_engine.max_consecutive_losses = settings.auto_max_consecutive_losses
         auto_engine.reserve_sol_balance = settings.reserve_sol_balance
+        auto_engine.position_sizing_mode = settings.position_sizing_mode
 
     def refresh_runtime_credentials() -> None:
         fresh_settings = load_settings()
